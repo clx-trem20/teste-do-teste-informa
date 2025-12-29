@@ -254,10 +254,13 @@ window.addEventListener('DOMContentLoaded', async () => {
     if(el.btnAddUsuario) el.btnAddUsuario.onclick = addUsuario;
     if(el.btnLimparLixeira) el.btnLimparLixeira.onclick = limparLixeira;
     if(el.btnExcel) el.btnExcel.onclick = exportarExcel;
-    if(el.adminGear) el.adminGear.onclick = () => {
-        el.painelAdmin.style.display = el.painelAdmin.style.display==='none' ? 'block' : 'none';
-        if(el.painelAdmin.style.display === 'block') el.painelAdmin.scrollIntoView({behavior: 'smooth'});
-    };
+    
+    if(el.adminGear) {
+        el.adminGear.onclick = () => {
+            el.painelAdmin.style.display = el.painelAdmin.style.display==='none' ? 'block' : 'none';
+            if(el.painelAdmin.style.display === 'block') el.painelAdmin.scrollIntoView({behavior: 'smooth'});
+        };
+    }
 
     const maskTel = (e) => { let v = e.target.value.replace(/\D/g,""); v = v.replace(/^(\d{2})(\d)/g,"($1) $2"); v = v.replace(/(\d)(\d{4})$/,"$1-$2"); e.target.value = v; };
     if(el.cpf) el.cpf.oninput = (e) => e.target.value = e.target.value.replace(/\D/g,"").replace(/(\d{3})(\d)/,"$1.$2").replace(/(\d{3})(\d)/,"$1.$2").replace(/(\d{3})(\d{1,2})$/,"$1-$2");
@@ -265,30 +268,49 @@ window.addEventListener('DOMContentLoaded', async () => {
     if(el.telefone) el.telefone.oninput = maskTel;
     if(el.contato) el.contato.oninput = maskTel;
 
+    // Garante que o sistema sempre inicie no login
     await carregarUsuarios();
 });
 
 async function login(){
-    const s = await getDocs(collection(db, 'usuarios'));
-    usuarios = s.docs.map(d => ({id: d.id, ...d.data()}));
-    const u = usuarios.find(u => u.usuario === el.loginUsuario.value && u.senha === el.loginSenha.value);
-    if(!u) return el.erro.innerText = "Falha no login.";
-    if(!u.ativo) return el.erro.innerText = "Acesso bloqueado.";
-    
-    localStorage.setItem('sessao_informa', JSON.stringify(u));
-    entrarNoSistema(u);
+    try {
+        const s = await getDocs(collection(db, 'usuarios'));
+        usuarios = s.docs.map(d => ({id: d.id, ...d.data()}));
+        const userVal = el.loginUsuario.value;
+        const passVal = el.loginSenha.value;
+        
+        const u = usuarios.find(u => u.usuario === userVal && u.senha === passVal);
+        
+        if(!u) {
+            el.erro.innerText = "Falha no login: Usuário ou senha incorretos.";
+            return;
+        }
+        if(!u.ativo) {
+            el.erro.innerText = "Acesso bloqueado por um administrador.";
+            return;
+        }
+        
+        localStorage.setItem('sessao_informa', JSON.stringify(u));
+        entrarNoSistema(u);
+    } catch (err) {
+        el.erro.innerText = "Erro ao conectar com o banco de dados.";
+    }
 }
 
 function entrarNoSistema(u) {
     usuarioLogado = u;
-    if(el.login) el.login.style.display = 'none';
-    if(el.sistema) el.sistema.style.display = 'block';
+    el.login.style.display = 'none';
+    el.sistema.style.display = 'block';
+    
     if(u.nivel === 'admin'){
-        if(el.adminGear) el.adminGear.style.display = 'block';
-        if(el.secaoCadastro) el.secaoCadastro.style.display = 'block';
+        el.adminGear.style.display = 'block';
+        el.secaoCadastro.style.display = 'block';
         carregarLixeira();
     } else {
-        if(el.buscaCategoria) { el.buscaCategoria.value = u.categoria; el.buscaCategoria.disabled = true; }
+        if(el.buscaCategoria) { 
+            el.buscaCategoria.value = u.categoria; 
+            el.buscaCategoria.disabled = true; 
+        }
     }
     carregarPessoas();
 }
@@ -304,12 +326,13 @@ async function carregarUsuarios(){
     if(el.listaUsuarios){
         el.listaUsuarios.innerHTML = "";
         usuarios.forEach(u => {
-            el.listaUsuarios.innerHTML += `<div class="card ${u.ativo ? '' : 'bloqueado'}">
-                <b>${u.usuario}</b> (${u.nivel})<br>
-                <button class="btn-mini success" onclick="window.resetarSenha('${u.id}', '${u.usuario}')">Reset Senha</button>
-                <button class="btn-mini secondary" onclick="window.toggleUser('${u.id}', ${u.ativo})">${u.ativo ? 'Bloquear' : 'Ativar'}</button>
-                ${u.usuario !== 'CLX' ? `<button class="danger btn-mini" onclick="window.excluirUsuario('${u.id}')">Excluir</button>` : ''}
-            </div>`;
+            el.listaUsuarios.innerHTML += `
+                <div class="card ${u.ativo ? '' : 'bloqueado'}">
+                    <b>${u.usuario}</b> (${u.nivel})<br>
+                    <button class="btn-mini success" onclick="window.resetarSenha('${u.id}', '${u.usuario}')">Reset Senha</button>
+                    <button class="btn-mini secondary" onclick="window.toggleUser('${u.id}', ${u.ativo})">${u.ativo ? 'Bloquear' : 'Ativar'}</button>
+                    ${u.usuario !== 'CLX' ? `<button class="danger btn-mini" onclick="window.excluirUsuario('${u.id}')">Excluir</button>` : ''}
+                </div>`;
         });
     }
 }
@@ -318,14 +341,24 @@ window.resetarSenha = async (id, nome) => {
     const nS = prompt(`Nova senha para ${nome}:`);
     if(nS) { await updateDoc(doc(db, 'usuarios', id), { senha: nS }); carregarUsuarios(); }
 };
-window.toggleUser = async (id, stat) => { await updateDoc(doc(db, 'usuarios', id), { ativo: !stat }); carregarUsuarios(); };
-window.excluirUsuario = async (id) => { if(confirm("Excluir acesso?")) { await deleteDoc(doc(db, 'usuarios', id)); carregarUsuarios(); } };
+
+window.toggleUser = async (id, stat) => { 
+    await updateDoc(doc(db, 'usuarios', id), { ativo: !stat }); 
+    carregarUsuarios(); 
+};
+
+window.excluirUsuario = async (id) => { 
+    if(confirm("Excluir acesso permanentemente?")) { 
+        await deleteDoc(doc(db, 'usuarios', id)); 
+        carregarUsuarios(); 
+    } 
+};
 
 async function carregarPessoas(){
     const s = await getDocs(collection(db, 'pessoas'));
     pessoas = s.docs.map(d => ({id: d.id, ...d.data()}));
     if(el.pessoaNota){
-        el.pessoaNota.innerHTML = '<option value="">Selecione...</option>';
+        el.pessoaNota.innerHTML = '<option value="">Selecione um colaborador...</option>';
         pessoas.forEach((p, i) => {
             if(usuarioLogado.nivel === 'admin' || p.categoria === usuarioLogado.categoria)
                 el.pessoaNota.add(new Option(p.nome, i));
@@ -335,109 +368,225 @@ async function carregarPessoas(){
 }
 
 async function salvarPessoa(){
-    const d = { nome: el.nome.value, categoria: el.categoria.value, matricula: el.matricula.value, email: el.email.value, telefone: el.telefone.value, contato: el.contato.value, cpf: el.cpf.value, rg: el.rg.value, dataNascimento: el.dataNascimento.value, anoEntrada: el.anoEntrada.value, notas: pessoaEditando ? (pessoaEditando.notas || []) : [], notasExcluidas: pessoaEditando ? (pessoaEditando.notasExcluidas || []) : [] };
+    const d = { 
+        nome: el.nome.value, 
+        categoria: el.categoria.value, 
+        matricula: el.matricula.value, 
+        email: el.email.value, 
+        telefone: el.telefone.value, 
+        contato: el.contato.value, 
+        cpf: el.cpf.value, 
+        rg: el.rg.value, 
+        dataNascimento: el.dataNascimento.value, 
+        anoEntrada: el.anoEntrada.value, 
+        notas: pessoaEditando ? (pessoaEditando.notas || []) : [], 
+        notasExcluidas: pessoaEditando ? (pessoaEditando.notasExcluidas || []) : [] 
+    };
+    
     if(pessoaEditando) await updateDoc(doc(db, 'pessoas', pessoaEditando.id), d);
     else await addDoc(collection(db, 'pessoas'), d);
-    alert("Salvo!"); ['nome','matricula','email','telefone','contato','cpf','rg','dataNascimento','anoEntrada'].forEach(f => el[f].value = "");
-    pessoaEditando = null; carregarPessoas();
+    
+    alert("Colaborador salvo com sucesso!");
+    ['nome','matricula','email','telefone','contato','cpf','rg','dataNascimento','anoEntrada'].forEach(f => el[f].value = "");
+    pessoaEditando = null; 
+    carregarPessoas();
 }
 
 async function salvarNota(){
-    const p = pessoas[el.pessoaNota.value];
-    if(!p) return alert("Selecione um colaborador");
-    const n = { tipo: el.tipoNota.value, texto: el.nota.value, autor: usuarioLogado.usuario, data: new Date().toLocaleDateString('pt-BR') };
-    p.notas = p.notas || []; p.notas.push(n);
+    const pIdx = el.pessoaNota.value;
+    if(pIdx === "") return alert("Selecione um colaborador");
+    
+    const p = pessoas[pIdx];
+    const n = { 
+        tipo: el.tipoNota.value, 
+        texto: el.nota.value, 
+        autor: usuarioLogado.usuario, 
+        data: new Date().toLocaleDateString('pt-BR') 
+    };
+    
+    p.notas = p.notas || []; 
+    p.notas.push(n);
+    
     await updateDoc(doc(db, 'pessoas', p.id), { notas: p.notas });
-    el.nota.value = ""; alert("Nota salva!"); atualizarGrafico();
+    el.nota.value = ""; 
+    alert("Nota registada!"); 
+    atualizarGrafico();
+    if(el.secaoNotas.style.display === 'block') window.verNotas(pIdx);
 }
 
 window.apagarNota = async (pIdx, nIdx) => {
-    if(!confirm("Mover para gaveta?")) return;
+    if(!confirm("Mover esta nota para a gaveta de excluídas?")) return;
     const p = pessoas[pIdx];
     const nRem = p.notas.splice(nIdx, 1)[0];
-    p.notasExcluidas = p.notasExcluidas || []; p.notasExcluidas.push(nRem);
+    p.notasExcluidas = p.notasExcluidas || []; 
+    p.notasExcluidas.push(nRem);
+    
     await updateDoc(doc(db, 'pessoas', p.id), { notas: p.notas, notasExcluidas: p.notasExcluidas });
-    window.verNotas(pIdx); atualizarGrafico();
+    window.verNotas(pIdx); 
+    atualizarGrafico();
 };
 
 window.restaurarNota = async (pIdx, nIdx) => {
     const p = pessoas[pIdx];
     const nRes = p.notasExcluidas.splice(nIdx, 1)[0];
     p.notas.push(nRes);
+    
     await updateDoc(doc(db, 'pessoas', p.id), { notas: p.notas, notasExcluidas: p.notasExcluidas });
-    window.verNotas(pIdx); atualizarGrafico();
+    window.verNotas(pIdx); 
+    atualizarGrafico();
 };
 
 window.verNotas = function(idx){
-    const p = pessoas[idx]; el.secaoNotas.style.display = 'block'; el.listaNotas.innerHTML = "";
+    const p = pessoas[idx]; 
+    el.secaoNotas.style.display = 'block'; 
+    el.listaNotas.innerHTML = "";
+    
     p.notas?.forEach((n, ni) => {
         const btn = usuarioLogado.nivel === 'admin' ? `<span class="btn-del-nota" onclick="window.apagarNota(${idx}, ${ni})">🗑️</span>` : '';
-        el.listaNotas.innerHTML += `<div class="${n.tipo}">${btn}<strong>${n.tipo.toUpperCase()}</strong>: ${n.texto}<br><small>${n.data} por ${n.autor}</small></div>`;
+        el.listaNotas.innerHTML += `
+            <div class="${n.tipo}">
+                ${btn}
+                <strong>${n.tipo.toUpperCase()}</strong>: ${n.texto}
+                <br><small>${n.data} por ${n.autor}</small>
+            </div>`;
     });
+    
     if(usuarioLogado.nivel === 'admin' && p.notasExcluidas?.length > 0) {
-        el.gavetaExcluidas.style.display = 'block'; el.listaExcluidas.innerHTML = "";
-        p.notasExcluidas.forEach((n, ni) => { el.listaExcluidas.innerHTML += `<div class="excluida"><span class="btn-restore-nota" onclick="window.restaurarNota(${idx}, ${ni})">🔄</span>${n.texto}</div>`; });
-    } else if(el.gavetaExcluidas) { el.gavetaExcluidas.style.display = 'none'; }
+        el.gavetaExcluidas.style.display = 'block'; 
+        el.listaExcluidas.innerHTML = "";
+        p.notasExcluidas.forEach((n, ni) => { 
+            el.listaExcluidas.innerHTML += `
+                <div class="excluida">
+                    <span class="btn-restore-nota" onclick="window.restaurarNota(${idx}, ${ni})">🔄</span>
+                    ${n.texto}
+                </div>`; 
+        });
+    } else { 
+        el.gavetaExcluidas.style.display = 'none'; 
+    }
     el.secaoNotas.scrollIntoView({behavior: 'smooth'});
 }
 
-function buscar(){
-    el.resultado.innerHTML = ""; el.secaoNotas.style.display = 'none';
+window.buscar = function(){
+    el.resultado.innerHTML = ""; 
+    el.secaoNotas.style.display = 'none';
+    
+    const buscaN = el.buscaNome.value.toLowerCase();
+    const buscaC = el.buscaCategoria.value;
+    
     const filt = pessoas.filter(p => {
-        const n = p.nome.toLowerCase().includes(el.buscaNome.value.toLowerCase());
-        const c = el.buscaCategoria.value === "" || p.categoria === el.buscaCategoria.value;
-        return (usuarioLogado.nivel === 'admin' ? (n && c) : (p.categoria === usuarioLogado.categoria && n));
+        const nMatch = p.nome.toLowerCase().includes(buscaN);
+        const cMatch = buscaC === "" || p.categoria === buscaC;
+        
+        if(usuarioLogado.nivel === 'admin') return nMatch && cMatch;
+        return p.categoria === usuarioLogado.categoria && nMatch;
     });
+    
     filt.forEach(p => {
         const idx = pessoas.indexOf(p);
-        el.resultado.innerHTML += `<div class="card"><b>${p.nome}</b> (${p.categoria})<br>
-            <button class="btn-mini" onclick="verNotas(${idx})">Notas</button>
-            ${usuarioLogado.nivel==='admin' ? `<button class="btn-mini secondary" onclick="editarPessoa(${idx})">Editar</button> <button class="btn-mini danger" onclick="excluirPessoa('${p.id}')">Excluir</button>` : ''}
-        </div>`;
+        el.resultado.innerHTML += `
+            <div class="card">
+                <b>${p.nome}</b> (${p.categoria})<br>
+                <button class="btn-mini" onclick="window.verNotas(${idx})">Ver Histórico</button>
+                ${usuarioLogado.nivel==='admin' ? `
+                    <button class="btn-mini secondary" onclick="window.editarPessoa(${idx})">Editar</button> 
+                    <button class="btn-mini danger" onclick="window.excluirPessoa('${p.id}')">Excluir</button>
+                ` : ''}
+            </div>`;
     });
 }
 
 window.excluirPessoa = async (id) => {
-    if(confirm("Mover para lixeira?")){
-        const p = parseInt(pessoas.findIndex(x => x.id === id));
-        await addDoc(collection(db, 'lixeira'), { dados: pessoas[p], data: new Date().toLocaleString() });
-        await deleteDoc(doc(db, 'pessoas', id)); carregarPessoas(); buscar();
+    if(confirm("Mover colaborador para a lixeira?")){
+        const pIdx = pessoas.findIndex(x => x.id === id);
+        if(pIdx === -1) return;
+        
+        await addDoc(collection(db, 'lixeira'), { 
+            dados: pessoas[pIdx], 
+            data: new Date().toLocaleString() 
+        });
+        await deleteDoc(doc(db, 'pessoas', id)); 
+        carregarPessoas(); 
+        window.buscar();
     }
 };
 
 window.editarPessoa = (idx) => {
-    const p = pessoas[idx]; pessoaEditando = p;
-    ['nome','categoria','matricula','email','telefone','contato','cpf','rg','dataNascimento','anoEntrada'].forEach(f => el[f].value = p[f] || "");
+    const p = pessoas[idx]; 
+    pessoaEditando = p;
+    ['nome','categoria','matricula','email','telefone','contato','cpf','rg','dataNascimento','anoEntrada'].forEach(f => {
+        el[f].value = p[f] || "";
+    });
     window.scrollTo({top: 0, behavior: 'smooth'});
 };
 
 async function carregarLixeira(){
     const s = await getDocs(collection(db, 'lixeira'));
     if(el.listaLixeira){
-        el.listaLixeira.innerHTML = "<b>Lixeira:</b>";
-        s.forEach(d => el.listaLixeira.innerHTML += `<div>- ${d.data().dados?.nome}</div>`);
+        el.listaLixeira.innerHTML = "<b>Itens na lixeira:</b>";
+        s.forEach(d => {
+            const item = d.data();
+            el.listaLixeira.innerHTML += `<div>• ${item.dados?.nome || 'Sem nome'} (${item.data})</div>`;
+        });
     }
 }
 
 async function limparLixeira(){
-    if(!confirm("Limpar lixeira?")) return;
+    if(!confirm("Esvaziar lixeira permanentemente?")) return;
     const s = await getDocs(collection(db, 'lixeira'));
-    s.forEach(async d => await deleteDoc(doc(db, 'lixeira', d.id))); carregarLixeira();
+    for (const d of s.docs) {
+        await deleteDoc(doc(db, 'lixeira', d.id));
+    }
+    carregarLixeira();
 }
 
 async function addUsuario(){
-    await addDoc(collection(db, 'usuarios'), { usuario: el.novoUsuario.value, senha: el.senhaUsuario.value, nivel: el.nivelUsuario.value, categoria: el.categoriaUsuario.value, ativo: true });
-    el.novoUsuario.value = ""; el.senhaUsuario.value = ""; carregarUsuarios();
+    if(!el.novoUsuario.value || !el.senhaUsuario.value) return alert("Preencha utilizador e senha");
+    
+    await addDoc(collection(db, 'usuarios'), { 
+        usuario: el.novoUsuario.value, 
+        senha: el.senhaUsuario.value, 
+        nivel: el.nivelUsuario.value, 
+        categoria: el.categoriaUsuario.value, 
+        ativo: true 
+    });
+    
+    el.novoUsuario.value = ""; 
+    el.senhaUsuario.value = ""; 
+    carregarUsuarios();
 }
 
 function atualizarGrafico(){
     let e=0, r=0, m=0;
     pessoas.forEach(p => {
-        if(usuarioLogado.nivel === 'admin' || p.categoria === usuarioLogado.categoria)
-            p.notas?.forEach(n => { if(n.tipo==='elogio') e++; else if(n.tipo==='reclamacao') r++; else m++; });
+        if(usuarioLogado.nivel === 'admin' || p.categoria === usuarioLogado.categoria) {
+            p.notas?.forEach(n => { 
+                if(n.tipo==='elogio') e++; 
+                else if(n.tipo==='reclamacao') r++; 
+                else m++; 
+            });
+        }
     });
+    
     if(chart) chart.destroy();
-    if(el.grafico) chart = new Chart(el.grafico, { type: 'pie', data: { labels: ['Elogios', 'Reclamações', 'Melhorar'], datasets: [{ data: [e,r,m], backgroundColor: ['#10b981','#ef4444','#f59e0b'] }] }, options: { responsive: true, maintainAspectRatio: true } });
+    const ctx = el.grafico.getContext('2d');
+    chart = new Chart(ctx, { 
+        type: 'pie', 
+        data: { 
+            labels: ['Elogios', 'Reclamações', 'Melhorar'], 
+            datasets: [{ 
+                data: [e,r,m], 
+                backgroundColor: ['#10b981','#ef4444','#f59e0b'] 
+            }] 
+        }, 
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        } 
+    });
 }
 
 function exportarExcel() {
@@ -457,16 +606,19 @@ function exportarExcel() {
             "Reclamações": p.notas?.filter(n => n.tipo === 'reclamacao').length || 0,
             "A Melhorar": p.notas?.filter(n => n.tipo === 'melhorar').length || 0
         }));
-        const ws = XLSX.utils.json_to_sheet(data);
-        XLSX.utils.book_append_sheet(wb, ws, cat.substring(0, 31));
+        
+        if(data.length > 0) {
+            const ws = XLSX.utils.json_to_sheet(data);
+            XLSX.utils.book_append_sheet(wb, ws, cat.substring(0, 31));
+        }
     });
 
-    if (categoriasUnicas.length === 0) {
-        const wsVazia = XLSX.utils.json_to_sheet([{ Aviso: "Nenhum dado encontrado" }]);
-        XLSX.utils.book_append_sheet(wb, wsVazia, "Vazio");
+    if (wb.SheetNames.length === 0) {
+        alert("Sem dados para exportar.");
+        return;
     }
 
-    XLSX.writeFile(wb, "Relatorio_Informa_Categorizado.xlsx");
+    XLSX.writeFile(wb, "Relatorio_Informa_Completo.xlsx");
 }
 </script>
 </body>
