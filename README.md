@@ -24,12 +24,12 @@ body{ font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #
 
 input, select, textarea, button { 
     width:100%; 
-    padding: 12px; /* Aumentado para melhor toque no mobile */
+    padding: 12px; 
     margin-bottom:12px; 
     border:1px solid #ddd; 
     border-radius:8px; 
     box-sizing: border-box; 
-    font-size: 16px; /* Evita zoom automático no iOS */
+    font-size: 16px; 
 }
 
 button { background: var(--primary); color:#fff; border:none; cursor:pointer; font-weight:bold; transition: 0.2s; }
@@ -266,12 +266,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     if(el.contato) el.contato.oninput = maskTel;
 
     await carregarUsuarios();
-    const sessao = localStorage.getItem('sessao_informa');
-    if(sessao) {
-        const uS = JSON.parse(sessao);
-        const uV = usuarios.find(x => x.usuario === uS.usuario && x.senha === uS.senha);
-        if(uV && uV.ativo) entrarNoSistema(uV);
-    }
 });
 
 async function login(){
@@ -280,6 +274,7 @@ async function login(){
     const u = usuarios.find(u => u.usuario === el.loginUsuario.value && u.senha === el.loginSenha.value);
     if(!u) return el.erro.innerText = "Falha no login.";
     if(!u.ativo) return el.erro.innerText = "Acesso bloqueado.";
+    
     localStorage.setItem('sessao_informa', JSON.stringify(u));
     entrarNoSistema(u);
 }
@@ -298,7 +293,10 @@ function entrarNoSistema(u) {
     carregarPessoas();
 }
 
-function logout() { localStorage.removeItem('sessao_informa'); location.reload(); }
+function logout() { 
+    localStorage.removeItem('sessao_informa'); 
+    location.reload(); 
+}
 
 async function carregarUsuarios(){
     const s = await getDocs(collection(db, 'usuarios'));
