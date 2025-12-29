@@ -9,7 +9,6 @@
 :root { --primary: #2563eb; --danger: #dc2626; --success: #10b981; --warning: #eab308; --gray: #64748b; }
 body{ font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; min-height:100vh; display:flex; flex-direction:column; margin:0; padding: 10px; box-sizing: border-box; }
 
-/* Ajuste de largura total: Fluido em mobile, amplo em desktop */
 .container{ 
     width: 100%;
     max-width: 1400px; 
@@ -41,7 +40,6 @@ button.success { background: var(--success); }
 .card { border:1px solid #eee; padding:15px; border-radius:8px; margin:10px 0; background:#fff; position: relative; word-wrap: break-word; }
 .bloqueado { background: #fee2e2 !important; border: 1px solid #ef4444; }
 
-/* Estilos de Notas */
 .elogio, .reclamacao, .melhorar, .excluida { padding:12px; margin:10px 0; position: relative; border-radius: 4px; border-left-width: 5px; border-left-style: solid; }
 .elogio { background:#f0fdf4; border-left-color: var(--success); }
 .reclamacao { background:#fef2f2; border-left-color: var(--danger); }
@@ -52,11 +50,29 @@ button.success { background: var(--success); }
 .btn-restore-nota { position: absolute; top: 10px; right: 40px; color: var(--success); cursor: pointer; font-size: 20px; }
 
 #login { width: 100%; max-width:400px; margin:auto; background:#fff; padding:30px; border-radius:12px; text-align:center; box-shadow:0 15px 35px rgba(0,0,0,0.1); box-sizing: border-box; }
-#adminGear { position:fixed; bottom:20px; right:20px; font-size:32px; cursor:pointer; display:none; z-index:100; background: #fff; border-radius: 50%; padding: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+
+/* Botão Flutuante de Admin - GARANTIDO DISPLAY NONE INICIAL */
+#adminGear { 
+    position:fixed; 
+    bottom:25px; 
+    right:25px; 
+    font-size:35px; 
+    cursor:pointer; 
+    display:none; 
+    z-index:999; 
+    background: var(--primary); 
+    color: white;
+    border-radius: 50%; 
+    width: 60px;
+    height: 60px;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3); 
+    border: 2px solid white;
+}
 
 footer { text-align:center; padding:20px; color:#666; font-size:13px; }
 
-/* Grid responsiva melhorada */
 .grid-form { 
     display: grid; 
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
@@ -74,7 +90,6 @@ hr { border: 0; border-top: 1px solid #eee; margin: 30px 0; }
     margin-bottom: 20px; 
 }
 
-/* Responsividade específica para mobile */
 @media (max-width: 600px) {
     body { padding: 5px; }
     .container { padding: 15px; border-radius: 0; margin: 0; }
@@ -94,7 +109,8 @@ hr { border: 0; border-top: 1px solid #eee; margin: 30px 0; }
     <p id="erro" style="color:var(--danger); font-size:13px"></p>
 </div>
 
-<div id="adminGear">⚙️</div>
+<!-- O botão agora está com style="display:none" inline para garantir -->
+<div id="adminGear" style="display:none" title="Configurações de Admin">⚙️</div>
 
 <div class="container" id="sistema" style="display:none">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; margin-bottom: 20px;">
@@ -194,6 +210,7 @@ hr { border: 0; border-top: 1px solid #eee; margin: 30px 0; }
         <input id="senhaUsuario" type="password" placeholder="Senha">
         <select id="nivelUsuario">
             <option value="user">Usuário Comum</option>
+            <option value="presidencia">Presidência</option>
             <option value="admin">Administrador</option>
         </select>
         <select id="categoriaUsuario">
@@ -257,7 +274,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     
     if(el.adminGear) {
         el.adminGear.onclick = () => {
-            el.painelAdmin.style.display = el.painelAdmin.style.display==='none' ? 'block' : 'none';
+            el.painelAdmin.style.display = el.painelAdmin.style.display==='none' || el.painelAdmin.style.display==='' ? 'block' : 'none';
             if(el.painelAdmin.style.display === 'block') el.painelAdmin.scrollIntoView({behavior: 'smooth'});
         };
     }
@@ -268,7 +285,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     if(el.telefone) el.telefone.oninput = maskTel;
     if(el.contato) el.contato.oninput = maskTel;
 
-    // Garante que o sistema sempre inicie no login
     await carregarUsuarios();
 });
 
@@ -302,14 +318,27 @@ function entrarNoSistema(u) {
     el.login.style.display = 'none';
     el.sistema.style.display = 'block';
     
+    // RESET DO BOTÃO ANTES DE CHECAR O NÍVEL
+    el.adminGear.style.display = 'none';
+
     if(u.nivel === 'admin'){
-        el.adminGear.style.display = 'block';
+        // SÓ MOSTRA SE FOR ADMIN
+        el.adminGear.style.display = 'flex';
         el.secaoCadastro.style.display = 'block';
         carregarLixeira();
     } else {
-        if(el.buscaCategoria) { 
-            el.buscaCategoria.value = u.categoria; 
-            el.buscaCategoria.disabled = true; 
+        el.secaoCadastro.style.display = 'none';
+        
+        if(u.nivel === 'presidencia') {
+            if(el.buscaCategoria) { 
+                el.buscaCategoria.disabled = false; 
+                el.buscaCategoria.value = ""; 
+            }
+        } else {
+            if(el.buscaCategoria) { 
+                el.buscaCategoria.value = u.categoria; 
+                el.buscaCategoria.disabled = true; 
+            }
         }
     }
     carregarPessoas();
@@ -360,7 +389,7 @@ async function carregarPessoas(){
     if(el.pessoaNota){
         el.pessoaNota.innerHTML = '<option value="">Selecione um colaborador...</option>';
         pessoas.forEach((p, i) => {
-            if(usuarioLogado.nivel === 'admin' || p.categoria === usuarioLogado.categoria)
+            if(usuarioLogado.nivel === 'admin' || usuarioLogado.nivel === 'presidencia' || p.categoria === usuarioLogado.categoria)
                 el.pessoaNota.add(new Option(p.nome, i));
         });
     }
@@ -477,8 +506,7 @@ window.buscar = function(){
     const filt = pessoas.filter(p => {
         const nMatch = p.nome.toLowerCase().includes(buscaN);
         const cMatch = buscaC === "" || p.categoria === buscaC;
-        
-        if(usuarioLogado.nivel === 'admin') return nMatch && cMatch;
+        if(usuarioLogado.nivel === 'admin' || usuarioLogado.nivel === 'presidencia') return nMatch && cMatch;
         return p.categoria === usuarioLogado.categoria && nMatch;
     });
     
@@ -559,7 +587,7 @@ async function addUsuario(){
 function atualizarGrafico(){
     let e=0, r=0, m=0;
     pessoas.forEach(p => {
-        if(usuarioLogado.nivel === 'admin' || p.categoria === usuarioLogado.categoria) {
+        if(usuarioLogado.nivel === 'admin' || usuarioLogado.nivel === 'presidencia' || p.categoria === usuarioLogado.categoria) {
             p.notas?.forEach(n => { 
                 if(n.tipo==='elogio') e++; 
                 else if(n.tipo==='reclamacao') r++; 
